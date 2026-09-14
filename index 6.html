@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JARVIS</title>
+<style>
+  :root {
+    --bg: #050a12;
+    --bg-panel: #0a1420;
+    --line: #16324a;
+    --text: #dbeeff;
+    --text-dim: #4f7ea3;
+    --accent: #22d3ee;
+    --accent-dim: #0e5a6e;
+    --amber: #ff8a3d;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(34, 211, 238, 0.08), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(34, 211, 238, 0.035) 0px, rgba(34, 211, 238, 0.035) 1px, transparent 1px, transparent 34px),
+      repeating-linear-gradient(90deg, rgba(34, 211, 238, 0.035) 0px, rgba(34, 211, 238, 0.035) 1px, transparent 1px, transparent 34px),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+  }
+
+  .hud-corner {
+    position: fixed;
+    width: 26px;
+    height: 26px;
+    border: 1px solid var(--accent-dim);
+    opacity: 0.7;
+    pointer-events: none;
+    z-index: 5;
+  }
+
+  .hud-corner.tl { top: 10px; left: 10px; border-right: none; border-bottom: none; }
+  .hud-corner.tr { top: 10px; right: 10px; border-left: none; border-bottom: none; }
+  .hud-corner.bl { bottom: 10px; left: 10px; border-right: none; border-top: none; }
+  .hud-corner.br { bottom: 10px; right: 10px; border-left: none; border-top: none; }
+
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(79, 209, 197, 0.04), transparent);
+    backdrop-filter: blur(6px);
+  }
+
+  .brand {
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    color: var(--text-dim);
+  }
+
+  .brand strong {
+    color: var(--accent);
+    font-weight: 600;
+    text-shadow: 0 0 12px rgba(34, 211, 238, 0.5);
+  }
+
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 480px) {
+    header { padding: 14px 16px; flex-wrap: wrap; gap: 10px; }
+    .status { font-size: 11px; }
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s ease;
+  }
+
+  .status-dot.ready { background: var(--accent); }
+  .status-dot.listening { background: var(--amber); animation: pulse 1.2s infinite; }
+
+  .hands-free-toggle {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    color: var(--text-dim);
+    background: none;
+  }
+
+  .hands-free-toggle.on {
+    color: var(--amber);
+    border-color: var(--amber);
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 20px;
+    overflow: hidden;
+  }
+
+  .orb-wrap {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin-bottom: 28px;
+    flex-shrink: 0;
+  }
+
+  .orb-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid var(--accent-dim);
+  }
+
+  .orb-ring.r2 { inset: -14px; opacity: 0.5; }
+  .orb-ring.r3 {
+    inset: -30px;
+    opacity: 0.6;
+    border-style: dashed;
+    border-width: 1px;
+  }
+
+  .orb-wrap:not(.hidden) .orb-ring {
+    animation: rotate-slow 24s linear infinite;
+  }
+
+  .orb-wrap:not(.hidden) .orb-ring.r3 {
+    animation: rotate-slow 40s linear infinite reverse;
+  }
+
+  .sweep {
+    position: absolute;
+    inset: -30px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, rgba(34, 211, 238, 0.35), transparent 20%);
+    animation: rotate-slow 3.2s linear infinite;
+    mix-blend-mode: screen;
+  }
+
+  @keyframes rotate-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  .face {
+    position: absolute;
+    inset: 22px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #6fe6da, var(--accent) 60%, var(--accent-dim));
+    box-shadow: 0 0 30px rgba(79, 209, 197, 0.35);
+    transition: box-shadow 0.3s ease, background 0.3s ease;
+    animation: breathe 4s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.035); }
+  }
+
+  body.listening .face, body.speaking .face {
+    animation: none;
+  }
+
+  body.listening .face {
+    box-shadow: 0 0 55px rgba(224, 164, 88, 0.55);
+    background: radial-gradient(circle at 35% 30%, #f3cf98, var(--amber) 60%, #8a6428);
+  }
+
+  body.listening .orb-ring { animation: expand 1.6s infinite ease-out; }
+  body.listening .orb-ring.r2 { animation-delay: 0.3s; }
+  body.listening .orb-ring.r3 { animation-delay: 0.6s; }
+
+  body.speaking .orb-ring { animation: expand 0.9s infinite ease-out; }
+  body.speaking .orb-ring.r2 { animation-delay: 0.15s; }
+  body.speaking .orb-ring.r3 { animation-delay: 0.3s; }
+
+  .eye {
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: #0a0d12;
+    top: 42%;
+    animation: blink 4.5s infinite;
+  }
+
+  .eye-left { left: 34%; }
+  .eye-right { right: 34%; }
+
+  @keyframes blink {
+    0%, 92%, 100% { transform: scaleY(1); }
+    95% { transform: scaleY(0.1); }
+  }
+
+  .mouth {
+    position: absolute;
+    left: 50%;
+    bottom: 30%;
+    width: 34px;
+    height: 4px;
+    border-radius: 4px;
+    background: #0a0d12;
+    transform: translateX(-50%);
+    transition: height 0.1s ease, width 0.1s ease, border-radius 0.1s ease;
+  }
+
+  body.speaking .mouth.open {
+    height: 16px;
+    width: 24px;
+    border-radius: 50%;
+  }
+
+  body.listening .mouth {
+    width: 20px;
+    border-radius: 50%;
+    height: 20px;
+  }
+
+  @keyframes expand {
+    0% { transform: scale(1); opacity: 0.6; border-color: var(--amber); }
+    100% { transform: scale(1.35); opacity: 0; border-color: var(--amber); }
+  }
+
+  .log {
+    width: 100%;
+    max-width: 620px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 4px 4px 20px;
+  }
+
+  .msg {
+    max-width: 82%;
+    padding: 11px 15px;
+    border-radius: 3px;
+    font-size: 14.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    animation: rise-in 0.25s ease;
+  }
+
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .thinking-dots {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+  }
+
+  .thinking-dots span {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: dot-bounce 1s infinite ease-in-out;
+  }
+
+  .thinking-dots span:nth-child(2) { animation-delay: 0.15s; }
+  .thinking-dots span:nth-child(3) { animation-delay: 0.3s; }
+
+  @keyframes dot-bounce {
+    0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+    40% { opacity: 1; transform: scale(1); }
+  }
+
+  .msg.user {
+    align-self: flex-end;
+    background: rgba(34, 211, 238, 0.06);
+    border: 1px solid var(--line);
+    color: var(--text);
+  }
+
+  .msg.jarvis {
+    align-self: flex-start;
+    border-left: 2px solid var(--accent);
+    padding-left: 13px;
+    color: var(--text);
+    text-shadow: 0 0 1px rgba(34, 211, 238, 0.15);
+  }
+
+  .msg.system {
+    align-self: center;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    border: none;
+  }
+
+  .composer {
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid var(--line);
+    padding-top: 20px;
+    flex-shrink: 0;
+  }
+
+  .composer input[type="text"] {
+    flex: 1;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14.5px;
+    padding: 12px 14px;
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .composer input[type="text"]:focus {
+    border-color: var(--accent-dim);
+  }
+
+  button {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 11px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+  }
+
+  button:hover { border-color: var(--accent-dim); }
+
+  .mic-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .mic-hint {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.04em;
+  }
+
+  button.mic {
+    width: 68px;
+    height: 68px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 26px;
+    border-radius: 50%;
+    border-width: 1px;
+  }
+
+  button.mic.on {
+    border-color: var(--amber);
+    color: var(--amber);
+    box-shadow: 0 0 20px rgba(255, 138, 61, 0.35);
+  }
+
+  .setup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 13, 18, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+
+  .setup-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 32px;
+    max-width: 420px;
+    width: 100%;
+  }
+
+  .setup-card h2 {
+    font-size: 17px;
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+
+  .setup-card p {
+    color: var(--text-dim);
+    font-size: 13.5px;
+    line-height: 1.6;
+    margin: 0 0 18px;
+  }
+
+  .setup-card input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 11px 13px;
+    border-radius: 3px;
+    margin-bottom: 14px;
+    outline: none;
+  }
+
+  .setup-card input:focus { border-color: var(--accent-dim); }
+
+  .setup-card button {
+    width: 100%;
+    background: var(--accent-dim);
+    border-color: var(--accent-dim);
+    color: #eafffb;
+    padding: 12px;
+  }
+
+  .hidden { display: none !important; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+  <div class="hud-corner tl"></div>
+  <div class="hud-corner tr"></div>
+  <div class="hud-corner bl"></div>
+  <div class="hud-corner br"></div>
+
+  <div class="setup-overlay" id="setupOverlay">
+    <div class="setup-card">
+      <h2>API-Key hinterlegen</h2>
+      <p>Dein Google-Gemini-API-Key wird nur in diesem Browser gespeichert (localStorage) und direkt an generativelanguage.googleapis.com gesendet. Er verlässt dein Gerät nicht über diese Seite hinaus.</p>
+      <input type="password" id="apiKeyInput" placeholder="Kompletten Gemini-Key hier einfügen" />
+      <button onclick="saveApiKey()">Speichern &amp; starten</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="brand"><strong>JARVIS</strong> &nbsp;/ persönlicher Assistent</div>
+    <div class="status">
+      <button class="hands-free-toggle on" id="handsFreeBtn">Freihändig: an</button>
+      <button class="hands-free-toggle" id="resetBtn" title="Gesprächsverlauf löschen">Verlauf löschen</button>
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">wird initialisiert</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="orb-wrap">
+      <div class="orb-ring r3"></div>
+      <div class="orb-ring r2"></div>
+      <div class="orb-ring"></div>
+      <div class="sweep"></div>
+      <div class="face" id="face">
+        <div class="eye eye-left"></div>
+        <div class="eye eye-right"></div>
+        <div class="mouth" id="mouth"></div>
+      </div>
+    </div>
+
+    <div class="log" id="log"></div>
+
+    <div class="composer">
+      <div class="mic-wrap">
+        <button class="mic" id="micBtn" title="Sprechen">🎙</button>
+        <div class="mic-hint">Zum Starten antippen</div>
+      </div>
+    </div>
+  </main>
+
+<script>
+  const STORAGE_KEY = 'jarvis_api_key';
+  const HISTORY_KEY = 'jarvis_history';
+  const MODEL = 'gemini-3.6-flash';
+
+  let conversation = [];
+  let recognizing = false;
+  let recognition = null;
+
+  const log = document.getElementById('log');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const micBtn = document.getElementById('micBtn');
+
+  function setStatus(state, label) {
+    statusDot.className = 'status-dot ' + state;
+    statusText.textContent = label;
+  }
+
+  const MAX_STORED_MESSAGES = 400; // Sicherheitsgrenze für den Browser-Speicher
+
+  function addMessage(role, content, persist = true) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.textContent = content;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    if (persist && (role === 'user' || role === 'jarvis')) {
+      conversation.push({ role: role === 'jarvis' ? 'assistant' : 'user', content });
+      if (conversation.length > MAX_STORED_MESSAGES) {
+        conversation = conversation.slice(-MAX_STORED_MESSAGES);
+      }
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(conversation));
+    }
+  }
+
+  function saveApiKey() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (key.length < 20) {
+      alert('Der Key sieht sehr kurz aus. Bitte den kompletten Key aus Google AI Studio einfügen.');
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, key);
+    document.getElementById('setupOverlay').classList.add('hidden');
+    setStatus('ready', 'bereit');
+    addMessage('system', 'Key gespeichert. Jarvis ist einsatzbereit.', false);
+  }
+
+  function showThinking() {
+    const div = document.createElement('div');
+    div.className = 'msg jarvis';
+    div.id = 'thinkingIndicator';
+    div.innerHTML = '<span class="thinking-dots"><span></span><span></span><span></span></span>';
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function hideThinking() {
+    const el = document.getElementById('thinkingIndicator');
+    if (el) el.remove();
+  }
+
+  async function callJarvis(userText) {
+    const key = localStorage.getItem(STORAGE_KEY);
+    setStatus('listening', 'denkt nach');
+    showThinking();
+
+    const history = [...conversation.slice(-20), { role: 'user', content: userText }];
+    // Gemini erwartet role "model" statt "assistant" und "parts" statt "content"
+    const contents = history.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: 'Du bist Jarvis, ein knapper, sachlicher persönlicher Assistent. Antworte auf Deutsch, es sei denn, der Nutzer schreibt in einer anderen Sprache. Halte Antworten kurz und konkret, außer der Nutzer bittet ausdrücklich um mehr Detail. Nutze die Websuche, wenn es um aktuelle Ereignisse, Daten, Preise oder Fakten geht, die sich ändern können.' }]
+          },
+          tools: [{ google_search: {} }],
+          contents
+        })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        const err = new Error(`API-Fehler ${res.status}: ${errBody}`);
+        err.status = res.status;
+        err.raw = errBody;
+        throw err;
+      }
+
+      const data = await res.json();
+      hideThinking();
+      const candidate = data.candidates && data.candidates[0];
+      const text = candidate
+        ? (candidate.content.parts || []).map(p => p.text || '').join('\n').trim()
+        : '';
+      addMessage('jarvis', text || '(keine Antwort erhalten - evtl. durch Sicherheitsfilter blockiert)');
+      speak(text);
+
+      const chunks = candidate && candidate.groundingMetadata && candidate.groundingMetadata.groundingChunks;
+      if (chunks && chunks.length) {
+        const sources = chunks
+          .map(c => c.web && c.web.title)
+          .filter(Boolean)
+          .slice(0, 4)
+          .join(' · ');
+        if (sources) addMessage('system', 'Quellen: ' + sources, false);
+      }
+    } catch (err) {
+      hideThinking();
+      handleJarvisFailure(err);
+    } finally {
+      setStatus('ready', 'bereit');
+    }
+  }
+
+  const FALLBACK_LINES = {
+    rateLimit: [
+      'Kurz überlastet - gib mir einen Moment und frag gleich nochmal.',
+      'Ich brauche kurz eine Pause, bin aber gleich wieder da.',
+      'Das Kontingent ist gerade knapp - in ein, zwei Minuten geht es weiter.'
+    ],
+    network: [
+      'Ich komme gerade nicht durch. Prüf kurz die Verbindung und versuch es nochmal.',
+      'Verbindung hakt gerade - ein neuer Versuch hilft meistens.'
+    ],
+    generic: [
+      'Das hat gerade nicht geklappt. Versuch es gleich nochmal.',
+      'Kleine Störung meinerseits - bitte nochmal fragen.'
+    ]
+  };
+
+  function pickLine(kind) {
+    const lines = FALLBACK_LINES[kind];
+    return lines[Math.floor(Math.random() * lines.length)];
+  }
+
+  function handleJarvisFailure(err) {
+    let kind = 'generic';
+    if (err.status === 429 || (err.raw && err.raw.includes('RESOURCE_EXHAUSTED'))) {
+      kind = 'rateLimit';
+    } else if (err.message && /fetch|network|failed to fetch/i.test(err.message)) {
+      kind = 'network';
+    }
+
+    const line = pickLine(kind);
+    addMessage('jarvis', line);
+    speak(line);
+  }
+
+  let handsFree = true;
+  let isSpeaking = false;
+  let mouthTimer = null;
+  const mouth = document.getElementById('mouth');
+  const handsFreeBtn = document.getElementById('handsFreeBtn');
+
+  function startMouthAnimation() {
+    mouthTimer = setInterval(() => {
+      mouth.classList.toggle('open');
+    }, 140);
+  }
+
+  function stopMouthAnimation() {
+    clearInterval(mouthTimer);
+    mouth.classList.remove('open');
+  }
+
+  let jarvisVoice = null;
+
+  function pickJarvisVoice() {
+    const voices = window.speechSynthesis.getVoices();
+    if (!voices.length) return;
+    const german = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith('de'));
+    const pool = german.length ? german : voices;
+    // Bevorzugt bekannte männliche Stimmennamen, sonst irgendeine nicht explizit weibliche
+    const preferredNames = ['markus', 'male', 'daniel', 'yannick', 'stefan'];
+    jarvisVoice =
+      pool.find(v => preferredNames.some(n => v.name.toLowerCase().includes(n))) ||
+      pool.find(v => !v.name.toLowerCase().includes('female') && !v.name.toLowerCase().includes('frau')) ||
+      pool[0];
+  }
+
+  if ('speechSynthesis' in window) {
+    pickJarvisVoice();
+    window.speechSynthesis.onvoiceschanged = pickJarvisVoice;
+  }
+
+  function speak(text) {
+    if (!('speechSynthesis' in window) || !text) {
+      if (handsFree) restartListening();
+      return;
+    }
+    window.speechSynthesis.cancel();
+    isSpeaking = true;
+    document.body.classList.add('speaking');
+    startMouthAnimation();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'de-DE';
+    if (jarvisVoice) utter.voice = jarvisVoice;
+    utter.pitch = 0.82;
+    utter.rate = 0.97;
+    utter.onend = () => {
+      isSpeaking = false;
+      document.body.classList.remove('speaking');
+      stopMouthAnimation();
+      setStatus('ready', 'bereit');
+      if (handsFree) restartListening();
+    };
+    window.speechSynthesis.speak(utter);
+  }
+
+  function restartListening() {
+    if (!recognition || recognizing) return;
+    setTimeout(() => {
+      try { recognition.start(); } catch (e) { /* already running */ }
+    }, 350);
+  }
+
+  handsFreeBtn.addEventListener('click', () => {
+    handsFree = !handsFree;
+    handsFreeBtn.textContent = handsFree ? 'Freihändig: an' : 'Freihändig: aus';
+    handsFreeBtn.classList.toggle('on', handsFree);
+    if (handsFree && !recognizing && !isSpeaking) {
+      try { recognition.start(); } catch (e) { /* ignore */ }
+    }
+  });
+
+  function setupSpeechRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      micBtn.disabled = true;
+      micBtn.title = 'Spracherkennung wird von diesem Browser nicht unterstützt (Chrome empfohlen)';
+      return;
+    }
+    recognition = new SR();
+    recognition.lang = 'de-DE';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      recognizing = true;
+      document.body.classList.add('listening');
+      micBtn.classList.add('on');
+      setStatus('listening', 'hört zu');
+      const hint = document.querySelector('.mic-hint');
+      if (hint) hint.remove();
+    };
+
+    recognition.onend = () => {
+      recognizing = false;
+      document.body.classList.remove('listening');
+      micBtn.classList.remove('on');
+      if (statusText.textContent === 'hört zu') setStatus('ready', 'bereit');
+      if (handsFree && !isSpeaking) restartListening();
+    };
+
+    recognition.onresult = (event) => {
+      const text = event.results[0][0].transcript;
+      addMessage('user', text);
+      callJarvis(text);
+    };
+
+    recognition.onerror = (event) => {
+      addMessage('system', 'Spracherkennung: ' + event.error, false);
+    };
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (!recognition) return;
+    if (recognizing) {
+      recognition.stop();
+    } else {
+      recognition.start();
+    }
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    if (!confirm('Gesamten Gesprächsverlauf wirklich löschen?')) return;
+    conversation = [];
+    localStorage.removeItem(HISTORY_KEY);
+    log.innerHTML = '';
+    addMessage('system', 'Verlauf gelöscht.', false);
+  });
+
+  function init() {
+    setupSpeechRecognition();
+    const savedHistory = localStorage.getItem(HISTORY_KEY);
+    const key = localStorage.getItem(STORAGE_KEY);
+
+    if (savedHistory) {
+      try {
+        conversation = JSON.parse(savedHistory);
+        conversation.forEach(m => addMessage(m.role === 'assistant' ? 'jarvis' : 'user', m.content, false));
+      } catch (e) { /* ignore malformed history */ }
+    }
+
+    if (key) {
+      document.getElementById('setupOverlay').classList.add('hidden');
+      setStatus('ready', 'bereit');
+    } else {
+      setStatus('', 'Key erforderlich');
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>
