@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>JARVIS</title>
+<style>
+  :root {
+    --bg: #0a0d12;
+    --bg-panel: #10141b;
+    --line: #1e2530;
+    --text: #e7ebf0;
+    --text-dim: #6b7686;
+    --accent: #4fd1c5;
+    --accent-dim: #245c56;
+    --amber: #e0a458;
+    --mono: 'JetBrains Mono', 'Courier New', monospace;
+    --sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 28px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand {
+    font-family: var(--mono);
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    color: var(--text-dim);
+  }
+
+  .brand strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .status {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: background 0.3s ease;
+  }
+
+  .status-dot.ready { background: var(--accent); }
+  .status-dot.listening { background: var(--amber); animation: pulse 1.2s infinite; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.35; }
+  }
+
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 32px 20px;
+    overflow: hidden;
+  }
+
+  .orb-wrap {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin-bottom: 28px;
+    flex-shrink: 0;
+  }
+
+  .orb-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 1px solid var(--accent-dim);
+  }
+
+  .orb-ring.r2 { inset: -14px; opacity: 0.5; }
+  .orb-ring.r3 { inset: -28px; opacity: 0.25; }
+
+  .orb-core {
+    position: absolute;
+    inset: 22px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #6fe6da, var(--accent) 60%, var(--accent-dim));
+    box-shadow: 0 0 30px rgba(79, 209, 197, 0.35);
+    transition: box-shadow 0.3s ease, transform 0.3s ease;
+  }
+
+  body.listening .orb-core {
+    box-shadow: 0 0 55px rgba(224, 164, 88, 0.55);
+    background: radial-gradient(circle at 35% 30%, #f3cf98, var(--amber) 60%, #8a6428);
+  }
+
+  body.listening .orb-ring { animation: expand 1.6s infinite ease-out; }
+  body.listening .orb-ring.r2 { animation-delay: 0.3s; }
+  body.listening .orb-ring.r3 { animation-delay: 0.6s; }
+
+  @keyframes expand {
+    0% { transform: scale(1); opacity: 0.6; border-color: var(--amber); }
+    100% { transform: scale(1.35); opacity: 0; border-color: var(--amber); }
+  }
+
+  .log {
+    width: 100%;
+    max-width: 620px;
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 4px 4px 20px;
+  }
+
+  .msg {
+    max-width: 82%;
+    padding: 11px 15px;
+    border-radius: 3px;
+    font-size: 14.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+
+  .msg.user {
+    align-self: flex-end;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    color: var(--text);
+  }
+
+  .msg.jarvis {
+    align-self: flex-start;
+    border-left: 2px solid var(--accent);
+    padding-left: 13px;
+    color: var(--text);
+  }
+
+  .msg.system {
+    align-self: center;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 12px;
+    border: none;
+  }
+
+  .composer {
+    width: 100%;
+    max-width: 620px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    border-top: 1px solid var(--line);
+    padding-top: 16px;
+    flex-shrink: 0;
+  }
+
+  .composer input[type="text"] {
+    flex: 1;
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14.5px;
+    padding: 12px 14px;
+    border-radius: 3px;
+    outline: none;
+  }
+
+  .composer input[type="text"]:focus {
+    border-color: var(--accent-dim);
+  }
+
+  button {
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 11px 16px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+  }
+
+  button:hover { border-color: var(--accent-dim); }
+
+  button.mic {
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 17px;
+  }
+
+  button.mic.on {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+
+  button.send {
+    color: var(--accent);
+    border-color: var(--accent-dim);
+  }
+
+  .setup-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 13, 18, 0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+
+  .setup-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 32px;
+    max-width: 420px;
+    width: 100%;
+  }
+
+  .setup-card h2 {
+    font-size: 17px;
+    margin: 0 0 8px;
+    font-weight: 600;
+  }
+
+  .setup-card p {
+    color: var(--text-dim);
+    font-size: 13.5px;
+    line-height: 1.6;
+    margin: 0 0 18px;
+  }
+
+  .setup-card input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--line);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 11px 13px;
+    border-radius: 3px;
+    margin-bottom: 14px;
+    outline: none;
+  }
+
+  .setup-card input:focus { border-color: var(--accent-dim); }
+
+  .setup-card button {
+    width: 100%;
+    background: var(--accent-dim);
+    border-color: var(--accent-dim);
+    color: #eafffb;
+    padding: 12px;
+  }
+
+  .hidden { display: none !important; }
+
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+  <div class="setup-overlay" id="setupOverlay">
+    <div class="setup-card">
+      <h2>API-Key hinterlegen</h2>
+      <p>Dein Google-Gemini-API-Key wird nur in diesem Browser gespeichert (localStorage) und direkt an generativelanguage.googleapis.com gesendet. Er verlässt dein Gerät nicht über diese Seite hinaus.</p>
+      <input type="password" id="apiKeyInput" placeholder="Kompletten Gemini-Key hier einfügen" />
+      <button onclick="saveApiKey()">Speichern &amp; starten</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="brand"><strong>JARVIS</strong> &nbsp;/ persönlicher Assistent</div>
+    <div class="status">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">wird initialisiert</span>
+    </div>
+  </header>
+
+  <main>
+    <div class="orb-wrap">
+      <div class="orb-ring r3"></div>
+      <div class="orb-ring r2"></div>
+      <div class="orb-ring"></div>
+      <div class="orb-core"></div>
+    </div>
+
+    <div class="log" id="log"></div>
+
+    <div class="composer">
+      <button class="mic" id="micBtn" title="Sprechen">🎙</button>
+      <input type="text" id="textInput" placeholder="Nachricht an Jarvis..." />
+      <button class="send" onclick="sendCurrentInput()">Senden</button>
+    </div>
+  </main>
+
+<script>
+  const STORAGE_KEY = 'jarvis_api_key';
+  const HISTORY_KEY = 'jarvis_history';
+  const MODEL = 'gemini-2.5-flash';
+
+  let conversation = [];
+  let recognizing = false;
+  let recognition = null;
+
+  const log = document.getElementById('log');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const textInput = document.getElementById('textInput');
+  const micBtn = document.getElementById('micBtn');
+
+  function setStatus(state, label) {
+    statusDot.className = 'status-dot ' + state;
+    statusText.textContent = label;
+  }
+
+  function addMessage(role, content, persist = true) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    div.textContent = content;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    if (persist && (role === 'user' || role === 'jarvis')) {
+      conversation.push({ role: role === 'jarvis' ? 'assistant' : 'user', content });
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(conversation.slice(-20)));
+    }
+  }
+
+  function saveApiKey() {
+    const key = document.getElementById('apiKeyInput').value.trim();
+    if (key.length < 20) {
+      alert('Der Key sieht sehr kurz aus. Bitte den kompletten Key aus Google AI Studio einfügen.');
+      return;
+    }
+    localStorage.setItem(STORAGE_KEY, key);
+    document.getElementById('setupOverlay').classList.add('hidden');
+    setStatus('ready', 'bereit');
+    addMessage('system', 'Key gespeichert. Jarvis ist einsatzbereit.', false);
+  }
+
+  async function callJarvis(userText) {
+    const key = localStorage.getItem(STORAGE_KEY);
+    setStatus('listening', 'denkt nach');
+
+    const history = [...conversation, { role: 'user', content: userText }];
+    // Gemini erwartet role "model" statt "assistant" und "parts" statt "content"
+    const contents = history.map(m => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }]
+    }));
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify({
+          system_instruction: {
+            parts: [{ text: 'Du bist Jarvis, ein knapper, sachlicher persönlicher Assistent. Antworte auf Deutsch, es sei denn, der Nutzer schreibt in einer anderen Sprache. Halte Antworten kurz und konkret, außer der Nutzer bittet ausdrücklich um mehr Detail.' }]
+          },
+          contents
+        })
+      });
+
+      if (!res.ok) {
+        const errBody = await res.text();
+        throw new Error(`API-Fehler ${res.status}: ${errBody}`);
+      }
+
+      const data = await res.json();
+      const candidate = data.candidates && data.candidates[0];
+      const text = candidate
+        ? (candidate.content.parts || []).map(p => p.text || '').join('\n').trim()
+        : '';
+      addMessage('jarvis', text || '(keine Antwort erhalten - evtl. durch Sicherheitsfilter blockiert)');
+      speak(text);
+    } catch (err) {
+      addMessage('system', 'Fehler: ' + err.message, false);
+    } finally {
+      setStatus('ready', 'bereit');
+    }
+  }
+
+  function sendCurrentInput() {
+    const text = textInput.value.trim();
+    if (!text) return;
+    addMessage('user', text);
+    textInput.value = '';
+    callJarvis(text);
+  }
+
+  textInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') sendCurrentInput();
+  });
+
+  function speak(text) {
+    if (!('speechSynthesis' in window) || !text) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang = 'de-DE';
+    window.speechSynthesis.speak(utter);
+  }
+
+  function setupSpeechRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      micBtn.disabled = true;
+      micBtn.title = 'Spracherkennung wird von diesem Browser nicht unterstützt (Chrome empfohlen)';
+      return;
+    }
+    recognition = new SR();
+    recognition.lang = 'de-DE';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      recognizing = true;
+      document.body.classList.add('listening');
+      micBtn.classList.add('on');
+      setStatus('listening', 'hört zu');
+    };
+
+    recognition.onend = () => {
+      recognizing = false;
+      document.body.classList.remove('listening');
+      micBtn.classList.remove('on');
+      if (statusText.textContent === 'hört zu') setStatus('ready', 'bereit');
+    };
+
+    recognition.onresult = (event) => {
+      const text = event.results[0][0].transcript;
+      addMessage('user', text);
+      callJarvis(text);
+    };
+
+    recognition.onerror = (event) => {
+      addMessage('system', 'Spracherkennung: ' + event.error, false);
+    };
+  }
+
+  micBtn.addEventListener('click', () => {
+    if (!recognition) return;
+    if (recognizing) {
+      recognition.stop();
+    } else {
+      recognition.start();
+    }
+  });
+
+  function init() {
+    setupSpeechRecognition();
+    const savedHistory = localStorage.getItem(HISTORY_KEY);
+    const key = localStorage.getItem(STORAGE_KEY);
+
+    if (savedHistory) {
+      try {
+        conversation = JSON.parse(savedHistory);
+        conversation.forEach(m => addMessage(m.role === 'assistant' ? 'jarvis' : 'user', m.content, false));
+      } catch (e) { /* ignore malformed history */ }
+    }
+
+    if (key) {
+      document.getElementById('setupOverlay').classList.add('hidden');
+      setStatus('ready', 'bereit');
+    } else {
+      setStatus('', 'Key erforderlich');
+    }
+  }
+
+  init();
+</script>
+</body>
+</html>
